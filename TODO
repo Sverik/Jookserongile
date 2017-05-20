@@ -1,5 +1,4 @@
 * Seadistuste UI, mis peatus ja mis liinid mis suunas.
 * Aeg-ajalt uurida, kas on sõiduplaanides uuendusi.
 * Salvestada sõiduplaanid kohalikult.
-* Pärast iga plaanide uuendust ja seadistuste muutmist panna kokku huvitavate aegade järjekord
-    järgmiseks x ajaks, kust oleks kerge widgetile uuendusi võtta.
+* Aegade järjekord järgmiseks x ajaks, kust oleks kerge widgetile uuendusi võtta.
