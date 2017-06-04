@@ -42,7 +42,7 @@ public class FetchTimesTask extends AsyncTask<String, Integer, Long> {
     protected String timeToString(long time) {
         Calendar c = GregorianCalendar.getInstance();
         c.setTimeInMillis(time);
-        return c.get(Calendar.HOUR) + ":" + String.format("%02d", c.get(Calendar.MINUTE));
+        return c.get(Calendar.HOUR_OF_DAY) + ":" + String.format("%02d", c.get(Calendar.MINUTE));
     }
 
     @Override
