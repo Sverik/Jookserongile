@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal">
+
+    <TextView
+        android:id="@+id/line"
+        style="@style/LineField"
+        android:text="Mingi_eriti_lollakalt_pikk_tekst,_mis_kuidagi_ära_ei_mahu"/>
+    <TextView
+        android:id="@+id/delta"
+        style="@style/DeltaField"
+        android:text="-1"/>
+    <TextView
+        android:id="@+id/time"
+        style="@style/TimeField"
+        android:text="18:32"/>
+</LinearLayout>
