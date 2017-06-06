@@ -1,16 +1,17 @@
 package com.photonorbit.jookserongile;
 
-import android.app.Service;
+import android.annotation.TargetApi;
+import android.app.job.JobInfo;
+import android.app.job.JobScheduler;
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProvider;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
-import android.os.IBinder;
-import android.support.annotation.IntDef;
-import android.support.annotation.Nullable;
+import android.content.SharedPreferences;
+import android.os.Build;
+import android.preference.PreferenceManager;
 import android.util.Log;
 import android.widget.RemoteViews;
 
@@ -20,71 +21,15 @@ import java.util.List;
 public class ExampleAppWidgetProvider extends AppWidgetProvider {
 
     private static final String APP_WIDGET_ID_KEY = "appWidgetIdKey";
+    public static final String ACTION_TICK = "CLOCK_TICK";
+    public static final String SETTINGS_CHANGED = "SETTINGS_CHANGED";
+    public static final String JOB_TICK = "JOB_CLOCK_TICK";
 
     private BroadcastReceiver receiver;
     static int[] allAppWidgetIds;
     static RemoteViews[] remoteViews;
 
-    public static class BootBroadcastReceiver extends BroadcastReceiver {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            Log.i("setup", "boot.onReceive");
-            context.startService(new Intent(context, ClockUpdateService.class));
-        }
-    }
-
-    public static class ClockUpdateService extends Service {
-        private static final String ACTION_UPDATE = "com.photonorbit.jookserongile.action.UPDATE";
-
-        private final static IntentFilter intentFilter;
-
-        static {
-            intentFilter = new IntentFilter();
-            intentFilter.addAction(Intent.ACTION_TIME_TICK);
-            intentFilter.addAction(Intent.ACTION_TIMEZONE_CHANGED);
-            intentFilter.addAction(Intent.ACTION_TIME_CHANGED);
-            intentFilter.addAction(ACTION_UPDATE);
-        }
-
-        private final BroadcastReceiver receiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                updateTables(context, intent);
-            }
-        };
-
-        @Nullable
-        @Override
-        public IBinder onBind(Intent intent) {
-            return null;
-        }
-
-        @Override
-        public void onCreate() {
-            super.onCreate();
-
-            registerReceiver(receiver, intentFilter);
-        }
-
-        @Override
-        public void onDestroy() {
-            super.onDestroy();
-
-            unregisterReceiver(receiver);
-        }
-
-        @Override
-        public int onStartCommand(Intent intent, int flags, int startId) {
-            if (intent != null && intent.getAction() != null) {
-                if (intent.getAction().equals(ACTION_UPDATE)) {
-                    updateTables(this, intent);
-                }
-            }
-            return START_STICKY;
-        }
-    }
-
-    private static void updateTables(Context context, Intent intent) {
+    public static void updateTables(Context context, Intent intent) {
         Log.i("data", "updateTables");
         if (intent.getAction().compareTo(Intent.ACTION_TIME_TICK) == 0) {
             Log.i("minute", "Minut möödunud!");
@@ -121,7 +66,7 @@ public class ExampleAppWidgetProvider extends AppWidgetProvider {
         for (DataUtil.Row row : data) {
             Log.i("data", row.toString());
         }
-        String text = appWidgetId + ": [" + data.size() + "]";
+        String text = appWidgetId + " @" + FetchTimesTask.timeToString(System.currentTimeMillis()) + " [" + data.size() + "]";
         if (data.size() > 0) {
             text += " " + data.get(0).line + " " + data.get(0).time;
         }
@@ -138,15 +83,33 @@ public class ExampleAppWidgetProvider extends AppWidgetProvider {
     public void onReceive(Context context, Intent intent) {
         Log.i("setup", "onReceive mina: " + ExampleAppWidgetProvider.this + ", action == " + intent.getAction());
         super.onReceive(context, intent);
-        if (intent.hasExtra(APP_WIDGET_ID_KEY)) {
-            onUpdate(context, AppWidgetManager.getInstance(context), new int[]{intent.getIntExtra(APP_WIDGET_ID_KEY, -1)});
+        SharedPreferences preferences =  PreferenceManager.getDefaultSharedPreferences(context);
+
+        AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(context);
+        ComponentName thisAppWidget = new ComponentName(context.getPackageName(), ExampleAppWidgetProvider.class.getName());
+        int[] appWidgetIds = appWidgetManager.getAppWidgetIds(thisAppWidget);
+
+        if (intent.getAction().equals(SETTINGS_CHANGED)) {
+            onUpdate(context, appWidgetManager, appWidgetIds);
+            if (appWidgetIds.length > 0) {
+                restartAll(context);
+            }
+        }
+
+        if (intent.getAction().equals(JOB_TICK) || intent.getAction().equals(ACTION_TICK) ||
+                intent.getAction().equals(AppWidgetManager.ACTION_APPWIDGET_UPDATE)
+                || intent.getAction().equals(Intent.ACTION_DATE_CHANGED)
+                || intent.getAction().equals(Intent.ACTION_TIME_CHANGED)
+                || intent.getAction().equals(Intent.ACTION_TIMEZONE_CHANGED)) {
+            restartAll(context);
+            onUpdate(context, appWidgetManager, appWidgetIds);
         }
     }
 
     @Override
     public void onUpdate(Context context, AppWidgetManager appWidgetManager, int[] appWidgetIds) {
         Log.i("setup", "onUpdate mina: " + ExampleAppWidgetProvider.this);
-        context.startService(new Intent(context, ClockUpdateService.class));
+        context.startService(new Intent(context, WidgetBackgroundService.class));
         for (int appWidgetId : appWidgetIds) {
             inflate(context, appWidgetId);
         }
@@ -178,7 +141,7 @@ public class ExampleAppWidgetProvider extends AppWidgetProvider {
     public void onEnabled(final Context context) {
         Log.i("setup", "onEnabled mina: " + ExampleAppWidgetProvider.this);
         super.onEnabled(context);
-        context.startService(new Intent(context, ClockUpdateService.class));
+        restartAll(context);
     }
 
     @Override
@@ -194,7 +157,42 @@ public class ExampleAppWidgetProvider extends AppWidgetProvider {
     public void onDisabled(Context context) {
         super.onDisabled(context);
         Log.i("setup", "onDisabled mina: " + ExampleAppWidgetProvider.this);
-        context.stopService(new Intent(context, ClockUpdateService.class));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            JobScheduler jobScheduler = (JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE);
+            jobScheduler.cancelAll();
+        } else {
+            // stop alarm
+            AppWidgetAlarm appWidgetAlarm = new AppWidgetAlarm(context.getApplicationContext());
+            appWidgetAlarm.stopAlarm();
+        }
+
+        Intent serviceBG = new Intent(context.getApplicationContext(), WidgetBackgroundService.class);
+        serviceBG.putExtra("SHUTDOWN", true);
+        context.getApplicationContext().startService(serviceBG);
+        context.getApplicationContext().stopService(serviceBG);
+    }
+
+    private void restartAll(Context context) {
+        Intent serviceBG = new Intent(context.getApplicationContext(), WidgetBackgroundService.class);
+        context.getApplicationContext().startService(serviceBG);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            scheduleJob(context);
+        } else {
+            AppWidgetAlarm appWidgetAlarm = new AppWidgetAlarm(context.getApplicationContext());
+            appWidgetAlarm.startAlarm();
+        }
+    }
+
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+    private void scheduleJob(Context context) {
+        ComponentName serviceComponent = new ComponentName(context.getPackageName(), RepeatingJob.class.getName());
+        JobInfo.Builder builder = new JobInfo.Builder(0, serviceComponent);
+        builder.setPersisted(true);
+        builder.setPeriodic(600000);
+        JobScheduler jobScheduler = (JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE);
+        int jobResult = jobScheduler.schedule(builder.build());
+        if (jobResult == JobScheduler.RESULT_SUCCESS){
+        }
     }
 
     public static int[] mergeArrays(int[] a, int[] b) {

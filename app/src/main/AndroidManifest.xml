@@ -24,19 +24,44 @@
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="CLOCK_TICK" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="JOB_CLOCK_TICK" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="SETTINGS_CHANGED" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.TIME_SET" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.DATE_CHANGED" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.os.action.DEVICE_IDLE_MODE_CHANGED"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.ACTION_DREAMING_STOPPED" />
+            </intent-filter>
             <meta-data android:name="android.appwidget.provider"
                 android:resource="@xml/example_appwidget_info" />
         </receiver>
-        <receiver android:name=".ExampleAppWidgetProvider$BootBroadcastReceiver">
+        <receiver android:name=".BootBroadcastReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
-        <service android:name="ExampleAppWidgetProvider$ClockUpdateService"
+        <service
+            android:name=".RepeatingJob"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="true"/>
+        <service android:name=".WidgetBackgroundService"
             android:exported="false">
-            <intent-filter>
-                <action android:name="com.photonorbit.jookserongile.action.UPDATE" />
-            </intent-filter>
         </service>
     </application>
 
