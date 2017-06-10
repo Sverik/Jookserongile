@@ -5,6 +5,7 @@ import android.content.SharedPreferences;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class DataUtil {
     private static final String PREFS = "Times_";
@@ -37,6 +38,9 @@ public class DataUtil {
         void done();
     }
 
+    protected static String liveFromTime = null;
+    protected static AtomicInteger liveUpdateCount = new AtomicInteger(0);
+
     public static List<Row> getNextRows(Context context, String table, long currentTime, int count, DoneCallback doneLoading) {
         List<Row> res = new ArrayList<>(count);
         SharedPreferences prefs = context.getSharedPreferences(PREFS + table, Context.MODE_PRIVATE);
@@ -55,6 +59,10 @@ public class DataUtil {
                 break;
             }
         }
+        if (liveFromTime == null) {
+            liveFromTime = FetchTimesTask.timeToString(currentTime);
+        }
+        liveUpdateCount.incrementAndGet();
         while (i >= 0 && res.size() < count) {
             String line = prefs.getString(i + LINE, null);
             String time = prefs.getString(i + TIME, null);
@@ -62,6 +70,7 @@ public class DataUtil {
                 needsFetching = true;
                 break;
             }
+            line += "[" + liveFromTime + ";" + liveUpdateCount.get() + "]";
             Row row = new Row(line, time, null);
             res.add(row);
             i++;
