@@ -5,13 +5,10 @@ import android.app.job.JobInfo;
 import android.app.job.JobScheduler;
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProvider;
-import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.Build;
-import android.preference.PreferenceManager;
 import android.util.Log;
 import android.widget.RemoteViews;
 
@@ -20,34 +17,20 @@ import java.util.List;
 
 public class ExampleAppWidgetProvider extends AppWidgetProvider {
 
+    private static final int NUM_ROWS = 10;
+
     private static final String APP_WIDGET_ID_KEY = "appWidgetIdKey";
     public static final String ACTION_TICK = "CLOCK_TICK";
     public static final String SETTINGS_CHANGED = "SETTINGS_CHANGED";
     public static final String JOB_TICK = "JOB_CLOCK_TICK";
 
-    private BroadcastReceiver receiver;
     static int[] allAppWidgetIds;
     static RemoteViews remoteViews = null;
     static RemoteViews[] rows = null;
 
-    public static void updateTables(Context context, Intent intent) {
-        Log.i("data", "updateTables");
-        if (intent.getAction().compareTo(Intent.ACTION_TIME_TICK) == 0) {
-            Log.i("minute", "Minut möödunud!");
-            AppWidgetManager widgetManager = AppWidgetManager.getInstance(context);
-            if (remoteViews == null || allAppWidgetIds == null) {
-                Log.w("minute", "remoteViews == null");
-                allAppWidgetIds = widgetManager.getAppWidgetIds(new ComponentName(context, ExampleAppWidgetProvider.class));
-                Log.w("minute", "allAppWidgetIds.length == " + allAppWidgetIds.length);
-                inflate(context);
-            }
-            Log.w("minute", "remoteViews.length == " + remoteViews);
-        }
-    }
-
     protected static void updateContent(final Context context, final AppWidgetManager widgetManager, final int appWidgetId) {
         long t = System.currentTimeMillis();
-        List<DataUtil.Row> data = DataUtil.getNextRows(context, Integer.toString(appWidgetId), t, 4, new DataUtil.DoneCallback() {
+        List<DataUtil.Row> data = DataUtil.getNextRows(context, Integer.toString(appWidgetId), t, NUM_ROWS, new DataUtil.DoneCallback() {
             @Override
             public void done() {
                 Log.i("data", "Done, calling for an update.");
@@ -62,8 +45,10 @@ public class ExampleAppWidgetProvider extends AppWidgetProvider {
             if (i >= rows.length) {
                 break;
             }
-            rows[i].setTextViewText(R.id.line, row.time);
-            rows[i].setTextViewText(R.id.delta, Integer.toString(i));
+            long delta = (row.timestamp - t) / (1000 * 60);
+            rows[i].setTextViewText(R.id.line, row.line);
+            rows[i].setTextViewText(R.id.delta, Long.toString(delta));
+            rows[i].setTextViewText(R.id.time, row.time);
             Log.i("data", row.toString());
             i++;
         }
@@ -79,7 +64,7 @@ public class ExampleAppWidgetProvider extends AppWidgetProvider {
         remoteViews = new RemoteViews(context.getPackageName(), R.layout.example_appwidget);
         remoteViews.removeAllViews(R.id.schedule);
         remoteViews.addView(R.id.schedule, new RemoteViews(context.getPackageName(), R.layout.schedule_title));
-        rows = new RemoteViews[3];
+        rows = new RemoteViews[NUM_ROWS];
         for (int i = 0 ; i < rows.length ; i++) {
             rows[i] = new RemoteViews(context.getPackageName(), R.layout.schedule_row);
             remoteViews.addView(R.id.schedule, rows[i]);
@@ -90,7 +75,6 @@ public class ExampleAppWidgetProvider extends AppWidgetProvider {
     public void onReceive(Context context, Intent intent) {
         Log.i("setup", "onReceive mina: " + ExampleAppWidgetProvider.this + ", action == " + intent.getAction());
         super.onReceive(context, intent);
-        SharedPreferences preferences =  PreferenceManager.getDefaultSharedPreferences(context);
 
         AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(context);
         ComponentName thisAppWidget = new ComponentName(context.getPackageName(), ExampleAppWidgetProvider.class.getName());
@@ -118,26 +102,18 @@ public class ExampleAppWidgetProvider extends AppWidgetProvider {
         Log.i("setup", "onUpdate mina: " + ExampleAppWidgetProvider.this);
         context.startService(new Intent(context, WidgetBackgroundService.class));
         Log.i("setup", "onUpdate (1.0) remoteViews == " + remoteViews);
-        Log.i("setup", "onUpdate (1.1) allAppWidgetIds.length == " + (this.allAppWidgetIds == null ? "null" : this.allAppWidgetIds.length));
-        Log.i("setup", "onUpdate (1.2) allAppWidgetIds == " + Arrays.toString(this.allAppWidgetIds));
+        Log.i("setup", "onUpdate (1.1) allAppWidgetIds.length == " + (allAppWidgetIds == null ? "null" : allAppWidgetIds.length));
+        Log.i("setup", "onUpdate (1.2) allAppWidgetIds == " + Arrays.toString(allAppWidgetIds));
         Log.i("setup", "onUpdate (1.2) appWidgetIds == " + Arrays.toString(appWidgetIds));
-        // Liita appWidgetIds olemasolevatele, teha uus remoteViews ja uuendada kõiki.
+        // Liita appWidgetIds olemasolevatele ja uuendada kõiki.
         // Mõistlik on uuendada enne kui minuti tick kohale jõuab, muidu näeb kasutaja tühja pilti.
-        this.allAppWidgetIds = mergeArrays(this.allAppWidgetIds, appWidgetIds);
-        Log.i("setup", "onUpdate (1.3) allAppWidgetIds == " + Arrays.toString(this.allAppWidgetIds));
+        allAppWidgetIds = mergeArrays(allAppWidgetIds, appWidgetIds);
+        Log.i("setup", "onUpdate (1.3) allAppWidgetIds == " + Arrays.toString(allAppWidgetIds));
         if (remoteViews == null) {
             inflate(context);
         }
-        for (int i = 0; i < this.allAppWidgetIds.length ; i++) {
-            int widgetId = this.allAppWidgetIds[i];
+        for (int widgetId : allAppWidgetIds) {
             updateContent(context, appWidgetManager, widgetId);
-
-/*
-            Intent intent = new Intent(context, ExampleAppWidgetProvider.class);
-            intent.setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE);
-            intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, allAppWidgetIds);
-            PendingIntent pendingIntent = PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
-*/
         }
         Log.i("setup", "onUpdate (2) remoteViews == " + remoteViews);
     }
@@ -154,8 +130,8 @@ public class ExampleAppWidgetProvider extends AppWidgetProvider {
         super.onDeleted(context, appWidgetIds);
         Log.i("setup", "onDeleted mina: " + ExampleAppWidgetProvider.this);
         Log.i("setup", "onDeleted appWidgetIds = " + Arrays.toString(appWidgetIds));
-        this.allAppWidgetIds = null;
-        this.remoteViews = null;
+        allAppWidgetIds = null;
+        remoteViews = null;
     }
 
     @Override
@@ -195,9 +171,7 @@ public class ExampleAppWidgetProvider extends AppWidgetProvider {
         builder.setPersisted(true);
         builder.setPeriodic(600000);
         JobScheduler jobScheduler = (JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE);
-        int jobResult = jobScheduler.schedule(builder.build());
-        if (jobResult == JobScheduler.RESULT_SUCCESS){
-        }
+        jobScheduler.schedule(builder.build());
     }
 
     public static int[] mergeArrays(int[] a, int[] b) {

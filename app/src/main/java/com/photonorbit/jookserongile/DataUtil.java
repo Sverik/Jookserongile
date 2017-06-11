@@ -16,11 +16,13 @@ public class DataUtil {
     public static class Row {
         public String line;
         public String time;
-        public String timestamp;
+        public String timestampString;
+        public long timestamp;
 
-        public Row(String line, String time, String timestamp) {
+        public Row(String line, String time, String timestampString, long timestamp) {
             this.line = line;
             this.time = time;
+            this.timestampString = timestampString;
             this.timestamp = timestamp;
         }
 
@@ -29,12 +31,12 @@ public class DataUtil {
             return "Row{" +
                     "line='" + line + '\'' +
                     ", time='" + time + '\'' +
-                    ", timestamp='" + timestamp + '\'' +
+                    ", timestampString='" + timestampString + '\'' +
                     '}';
         }
     }
 
-    public static interface DoneCallback {
+    public interface DoneCallback {
         void done();
     }
 
@@ -55,7 +57,7 @@ public class DataUtil {
                 break;
             }
             if (startShowingFrom.compareTo(timestamp) < 0) {
-                // startShowingFrom is before timestamp, this has to be shown
+                // startShowingFrom is before timestampString, this has to be shown
                 break;
             }
         }
@@ -66,12 +68,13 @@ public class DataUtil {
         while (i >= 0 && res.size() < count) {
             String line = prefs.getString(i + LINE, null);
             String time = prefs.getString(i + TIME, null);
+            String timestampString = prefs.getString(i + TIMESTAMP, null);
             if (line == null) {
                 needsFetching = true;
                 break;
             }
             line += "[" + liveFromTime + ";" + liveUpdateCount.get() + "]";
-            Row row = new Row(line, time, null);
+            Row row = new Row(line, time, timestampString, Long.parseLong(timestampString));
             res.add(row);
             i++;
         }
@@ -89,7 +92,7 @@ public class DataUtil {
         for (Row row : rows) {
             editor.putString(i + LINE, row.line);
             editor.putString(i + TIME, row.time);
-            editor.putString(i + TIMESTAMP, row.timestamp);
+            editor.putString(i + TIMESTAMP, row.timestampString);
             i++;
         }
         editor.commit();
